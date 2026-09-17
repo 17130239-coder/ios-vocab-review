@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useTransition } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import rawMaterialData from "@/data/material.json";
 import { MaterialData, Lesson, UserProgress } from "@/types/material";
 import {
@@ -8,25 +8,21 @@ import {
   saveUserProgress,
   calculateDailyStreak,
 } from "@/lib/storage";
-import { playHaptic } from "@/lib/audio";
-import { DynamicIsland } from "@/components/DynamicIsland";
-import { TabBar, TabKey } from "@/components/TabBar";
-import { DaySelector } from "@/components/DaySelector";
-import { DayOverview } from "@/components/DayOverview";
-import { VocabularyList } from "@/components/VocabularyList";
+import { playHaptic, speakEnglish, stopSpeaking } from "@/lib/audio";
+import { FocusCardsView } from "@/components/FocusCardsView";
 import { FlashcardModal } from "@/components/FlashcardModal";
 import { ExerciseSession } from "@/components/ExerciseSession";
 import { JourneyView } from "@/components/JourneyView";
 import { StatsView } from "@/components/StatsView";
-import { QuizizzCard } from "@/components/QuizizzCard";
 import { SettingsModal } from "@/components/SettingsModal";
+import { TabBar, TabKey } from "@/components/TabBar";
 import {
+  Volume2,
+  Settings,
+  Flame,
+  CheckCircle2,
+  Square,
   Sparkles,
-  Gamepad2,
-  Calendar,
-  Layers,
-  PenTool,
-  BookOpen,
 } from "lucide-react";
 
 const materialData = rawMaterialData as unknown as MaterialData;
@@ -34,12 +30,13 @@ const lessons: Lesson[] = materialData.lessons || [];
 
 export default function HomePage() {
   const [selectedDay, setSelectedDay] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<TabKey>("words");
+  const [activeTab, setActiveTab] = useState<TabKey>("words"); // "words" maps to Focus Cards
   const [isFlashcardOpen, setIsFlashcardOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [showQuizizzTab, setShowQuizizzTab] = useState(false);
+  const [isAutoPlayingAudio, setIsAutoPlayingAudio] = useState(false);
+  const autoPlayCancelRef = useRef(false);
 
-  // User progress loaded from localStorage
+  // User progress
   const [progress, setProgress] = useState<UserProgress>(() => {
     if (typeof window !== "undefined") {
       const initial = loadUserProgress();
@@ -64,12 +61,11 @@ export default function HomePage() {
     };
   });
 
-  // Save progress changes to localStorage
   useEffect(() => {
     saveUserProgress(progress);
   }, [progress]);
 
-  // Apply dark mode on initial load based on saved appearance
+  // Apply dark mode
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (progress.appearance === "dark") {
@@ -132,150 +128,188 @@ export default function HomePage() {
     playHaptic("pop", progress.soundEnabled);
   };
 
+  // Sequential Listen All words feature (from Stitch design)
+  const handleQuickListenAll = async () => {
+    if (isAutoPlayingAudio) {
+      autoPlayCancelRef.current = true;
+      setIsAutoPlayingAudio(false);
+      stopSpeaking();
+      return;
+    }
+
+    if (vocab.length === 0) return;
+
+    playHaptic("pop", progress.soundEnabled);
+    setIsAutoPlayingAudio(true);
+    autoPlayCancelRef.current = false;
+
+    for (let i = 0; i < vocab.length; i++) {
+      if (autoPlayCancelRef.current) break;
+      await speakEnglish(vocab[i].word, progress.speechRate);
+      if (autoPlayCancelRef.current) break;
+      // Wait 1.1s between words
+      await new Promise((res) => setTimeout(res, 1100));
+    }
+
+    setIsAutoPlayingAudio(false);
+  };
+
   return (
-    <main className="min-h-screen flex flex-col bg-[#F2F2F7] dark:bg-[#000000] text-[#1C1C1E] dark:text-[#F2F2F7] transition-colors duration-300">
-      {/* Dynamic Island Floating Header */}
-      <DynamicIsland
-        currentDay={currentLesson.day_number}
-        totalWordsInDay={vocab.length}
-        masteredInDay={masteredInDay}
-        streak={progress.streak}
-        themeColor={progress.themeColor}
-        onOpenStats={() => setActiveTab("stats")}
-      />
+    <main className="min-h-screen flex flex-col bg-[#f8fafc] dark:bg-[#09090b] text-[#0f172a] dark:text-[#f8fafc] transition-colors duration-300">
+      {/* Minimal iOS Top App Header (Stitch Design) */}
+      <header className="sticky top-0 z-40 frosted-glass border-b border-slate-200/60 dark:border-white/10 transition-all">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          {/* Logo & Brand */}
+          <div
+            onClick={() => setActiveTab("words")}
+            className="flex items-center gap-2.5 cursor-pointer select-none"
+          >
+            <div className="w-8 h-8 rounded-xl bg-[#0058bc] text-white flex items-center justify-center font-bold text-sm shadow-sm shadow-[#0058bc]/30">
+              T
+            </div>
+            <div>
+              <h1 className="font-bold text-sm tracking-tight text-slate-900 dark:text-white leading-none">
+                TOEIC Focus
+              </h1>
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                iOS 18 Focus Mode
+              </span>
+            </div>
+          </div>
 
-      {/* iOS 18 Navigation Bar Header */}
-      <header className="w-full max-w-4xl mx-auto px-4 pt-1 pb-2 flex items-center justify-between">
-        <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#007AFF] dark:text-[#389eff]">
-            {materialData.metadata.course_title || "English Vocabulary Course"}
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
-            Ôn Tập Từ Vựng
-          </h1>
-        </div>
+          {/* Quick Status & Voice Mode Pill */}
+          <div className="flex items-center gap-2">
+            {/* Streak flame badge */}
+            <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-bold">
+              <Flame className="w-3.5 h-3.5 fill-amber-500" />
+              <span>{progress.streak}d streak</span>
+            </div>
 
-        <div className="flex items-center gap-2">
-          {currentLesson.quizizz && (
+            {/* Quick Listen All Button */}
+            <button
+              onClick={handleQuickListenAll}
+              className={`h-8 px-3 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                isAutoPlayingAudio
+                  ? "bg-rose-500/15 text-rose-600 border border-rose-500/30"
+                  : "bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200"
+              }`}
+              title={isAutoPlayingAudio ? "Dừng đọc" : "Đọc lần lượt các từ"}
+            >
+              {isAutoPlayingAudio ? (
+                <>
+                  <Square className="w-3.5 h-3.5 fill-rose-600" />
+                  <span>Dừng</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-3.5 h-3.5 text-[#0058bc]" />
+                  <span>Nghe toàn bộ</span>
+                </>
+              )}
+            </button>
+
+            {/* Learned Count Pill */}
+            <div className="h-8 px-3 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-semibold flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span>
+                {masteredInDay}/{vocab.length} từ
+              </span>
+            </div>
+
+            {/* Settings button */}
             <button
               onClick={() => {
-                playHaptic("pop", progress.soundEnabled);
-                setShowQuizizzTab(!showQuizizzTab);
+                playHaptic("click", progress.soundEnabled);
+                setIsSettingsOpen(true);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                showQuizizzTab
-                  ? "bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-600/25"
-                  : "bg-white/80 dark:bg-white/10 text-neutral-700 dark:text-neutral-300 border-black/[0.06] dark:border-white/[0.1]"
-              }`}
+              className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors"
+              title="Cài đặt"
             >
-              <Gamepad2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Quizizz & Media</span>
+              <Settings className="w-4 h-4" />
             </button>
-          )}
+          </div>
         </div>
       </header>
 
-      {/* Horizontal Day Selector (visible on day-related tabs) */}
-      {activeTab !== "journey" && activeTab !== "stats" && (
-        <DaySelector
-          lessons={lessons}
-          selectedDay={selectedDay}
-          onSelectDay={(d) => {
-            setSelectedDay(d);
-            setShowQuizizzTab(false);
-          }}
-          progress={progress}
-          themeColor={progress.themeColor}
-          soundEnabled={progress.soundEnabled}
-        />
-      )}
-
-      {/* Main Tab Content */}
-      <div className="flex-1 w-full animate-in fade-in duration-300">
-        {showQuizizzTab ? (
-          <QuizizzCard
-            lesson={currentLesson}
-            themeColor={progress.themeColor}
-            soundEnabled={progress.soundEnabled}
-          />
-        ) : activeTab === "journey" ? (
-          <JourneyView
+      {/* Main Content Area */}
+      <div className="flex-1 w-full animate-in fade-in duration-300 pb-20">
+        {activeTab === "words" ? (
+          /* iOS 18 Focus Cards (Exact Stitch Design) */
+          <FocusCardsView
             lessons={lessons}
+            currentLesson={currentLesson}
             selectedDay={selectedDay}
-            onSelectDay={(day) => {
-              setSelectedDay(day);
-              setActiveTab("words");
-            }}
+            onSelectDay={setSelectedDay}
             progress={progress}
             themeColor={progress.themeColor}
             soundEnabled={progress.soundEnabled}
+            onToggleMastered={handleToggleMastered}
+            onToggleBookmark={(w) => handleToggleBookmark(w)}
+            onStartFlashcard={() => setIsFlashcardOpen(true)}
+            onStartPractice={() => setActiveTab("practice")}
           />
-        ) : activeTab === "words" ? (
-          <div className="space-y-3">
-            <DayOverview
+        ) : activeTab === "practice" ? (
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+            <ExerciseSession
               lesson={currentLesson}
               progress={progress}
               themeColor={progress.themeColor}
               soundEnabled={progress.soundEnabled}
-              onStartFlashcard={() => setIsFlashcardOpen(true)}
-              onStartPractice={() => setActiveTab("practice")}
-              onOpenWords={() => {}}
+              onSetExerciseCompleted={handleSetExerciseCompleted}
             />
-
-            <VocabularyList
-              lesson={currentLesson}
+          </div>
+        ) : activeTab === "journey" ? (
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+            <JourneyView
+              lessons={lessons}
+              selectedDay={selectedDay}
+              onSelectDay={(d) => {
+                setSelectedDay(d);
+                setActiveTab("words");
+              }}
               progress={progress}
               themeColor={progress.themeColor}
               soundEnabled={progress.soundEnabled}
-              onToggleMastered={handleToggleMastered}
-              onToggleBookmark={(word) => handleToggleBookmark(word)}
             />
           </div>
         ) : activeTab === "flashcards" ? (
-          <div className="w-full max-w-4xl mx-auto px-4 py-8 text-center space-y-4">
-            <div className="ios-glass-card rounded-[32px] p-8 max-w-md mx-auto space-y-4">
-              <div className="w-16 h-16 rounded-full bg-[#007AFF]/15 text-[#007AFF] flex items-center justify-center mx-auto">
-                <Layers className="w-8 h-8" />
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 text-center space-y-4">
+            <div className="frosted-glass rounded-3xl p-8 max-w-md mx-auto space-y-4 border border-slate-200/60 dark:border-white/10 shadow-lg">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-[#0058bc] flex items-center justify-center mx-auto">
+                <Sparkles className="w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-black text-neutral-900 dark:text-white">
-                Flashcard 3D: DAY {currentLesson.day_number}
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+                Flashcard Focus: DAY {currentLesson.day_number}
               </h2>
-              <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
-                Lật thẻ từ vựng với hiệu ứng 3D chân thực, nghe phát âm giọng bản xứ và ghi nhớ nghĩa nhanh chóng.
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                Lật thẻ từ vựng với hiệu ứng 3D, nghe phát âm bản xứ và ghi nhớ {vocab.length} từ cốt lõi.
               </p>
               <button
                 onClick={() => {
                   playHaptic("pop", progress.soundEnabled);
                   setIsFlashcardOpen(true);
                 }}
-                className="w-full py-3.5 px-6 rounded-2xl bg-[#007AFF] hover:bg-[#0071eb] text-white font-bold text-sm shadow-lg shadow-[#007AFF]/30 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3.5 px-6 rounded-2xl bg-[#0058bc] hover:bg-[#004ca3] text-white font-bold text-sm shadow-lg shadow-[#0058bc]/30 transition-all"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>Bắt đầu ôn Flashcard ({vocab.length} từ)</span>
+                Bắt đầu ôn Flashcard
               </button>
             </div>
           </div>
-        ) : activeTab === "practice" ? (
-          <ExerciseSession
-            lesson={currentLesson}
-            progress={progress}
-            themeColor={progress.themeColor}
-            soundEnabled={progress.soundEnabled}
-            onSetExerciseCompleted={handleSetExerciseCompleted}
-          />
         ) : activeTab === "stats" ? (
-          <StatsView
-            lessons={lessons}
-            progress={progress}
-            themeColor={progress.themeColor}
-            soundEnabled={progress.soundEnabled}
-            onSelectDay={(day) => {
-              setSelectedDay(day);
-              setActiveTab("words");
-            }}
-            onToggleBookmark={(dayNum, word) => handleToggleBookmark(word, dayNum)}
-            onResetProgress={handleResetProgress}
-          />
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+            <StatsView
+              lessons={lessons}
+              progress={progress}
+              themeColor={progress.themeColor}
+              soundEnabled={progress.soundEnabled}
+              onSelectDay={(day) => {
+                setSelectedDay(day);
+                setActiveTab("words");
+              }}
+              onToggleBookmark={(dayNum, word) => handleToggleBookmark(word, dayNum)}
+              onResetProgress={handleResetProgress}
+            />
+          </div>
         ) : null}
       </div>
 
@@ -304,7 +338,6 @@ export default function HomePage() {
         activeTab={activeTab}
         onTabChange={(tab) => {
           setActiveTab(tab);
-          setShowQuizizzTab(false);
           if (tab === "flashcards") {
             setIsFlashcardOpen(true);
           }

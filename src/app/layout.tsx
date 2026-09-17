@@ -1,13 +1,21 @@
 import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-plus-jakarta",
+});
+
 export const metadata: Metadata = {
-  title: "TOEIC Vocab Mastery — iOS 18 Daily Review",
-  description: "Ôn tập 36 ngày từ vựng tiếng Anh TOEIC chuẩn giao diện Apple iOS 18",
+  title: "TOEIC Focus — iOS 18 Focus Cards Ôn Tập Từ Vựng",
+  description: "Ôn tập 36 ngày từ vựng tiếng Anh TOEIC chuẩn giao diện Apple iOS 18 Focus Cards",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Vocab Review",
+    title: "TOEIC Focus",
   },
 };
 
@@ -18,7 +26,7 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
     { media: "(prefers-color-scheme: dark)", color: "#000000" },
   ],
 };
@@ -29,8 +37,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi" suppressHydrationWarning>
-      <body className="bg-[#F2F2F7] dark:bg-[#000000] text-[#1C1C1E] dark:text-[#F2F2F7] min-h-screen selection:bg-[#007AFF]/25 selection:text-[#007AFF]">
+    <html lang="vi" className={plusJakarta.variable} suppressHydrationWarning>
+      <body className="bg-[#f8fafc] dark:bg-[#000000] text-[#0f172a] dark:text-[#f8fafc] font-sans min-h-screen selection:bg-[#0070eb]/15 selection:text-[#0070eb]">
         {children}
       </body>
     </html>
