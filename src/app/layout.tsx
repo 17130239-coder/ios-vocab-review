@@ -10,12 +10,12 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "TOEIC Focus — iOS 18 Focus Cards Ôn Tập Từ Vựng",
-  description: "Ôn tập 36 ngày từ vựng tiếng Anh TOEIC chuẩn giao diện Apple iOS 18 Focus Cards",
+  title: "TOEIC Prep — Ôn Tập Từ Vựng",
+  description: "Ôn tập từ vựng tiếng Anh TOEIC theo ngày phong cách Zen Minimalist",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "TOEIC Focus",
+    title: "TOEIC Prep",
   },
 };
 
